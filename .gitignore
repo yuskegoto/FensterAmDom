@@ -1,0 +1,17 @@
+Pipfile.lock
+Pipfile
+.vscode
+*.jpg
+*.ppm
+*.conf
+*.ini
+*.txt
+__pycache__
+*.json
+*.code-workspace
+.micropy
+testPics
+.python-version
+firmware
+*.bin
+testCode
