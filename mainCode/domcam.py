@@ -23,21 +23,23 @@ FILE_OUT = False
 LOG_FILE = 'debug.log'
 LOG_OUT = True
 
+DEBUG_MSG = False #True
+
 ########################### Clip setting ############################
 CLIP_WIDTH = 32
 CLIP_HEIGHT = 32        # seems like minimum height must be 16
 
 # mountain cologne
 URL = "http://www.wdr.de/themen/global/webcams/domcam/domcam_960_live.jpg"
-OFFSET_X = 720      # Must be multiple of 8
-OFFSET_Y = 275 # Mountain
+# OFFSET_X = 720      # Must be multiple of 8
+# OFFSET_Y = 275 # Mountain
 
 # Sky cologne
-# OFFSET_X = 80      # Must be multiple of 8
-# OFFSET_Y = 100 # Sky
+OFFSET_X = 80      # Must be multiple of 8
+OFFSET_Y = 100 # Sky
 
 # Sidney loyal yacht squadron
-# URL = "https://www247.mangocam.com/c/rmys/img.php?w=640&h=360&auth=cm9vdDpheGlz&t=1599522073610"
+# URL = "https://www125.mangocam.com/c/rmys/img.php?w=640&h=360&auth=cm9vdDpheGlz&t=1601608912491"
 # OFFSET_X = 80      # Must be multiple of 8
 # OFFSET_Y = 24 # Sky
 
@@ -55,6 +57,7 @@ OFFSET_Y = OFFSET_Y - OFFSET_Y_REMINDER
 # # does not work with subdomain yet...
 # https://yuskegoto.github.io/jpeggetter/Rlogo-old.jpg
 
+addr_IP = ""
 
 ##################### Sleep and Wait Timing Setting ####################
 SLEEP_LENGTH_sec = 60
@@ -68,8 +71,7 @@ NUM_LED = 768
 LED_WIDTH = 32
 LED_HEIGHT = 24
 
-BRIGHTNESS = 0.2
-# BRIGHTNESS = 0.15
+BRIGHTNESS = 0.5
 
 COLOR_BALANCE_R = 230
 COLOR_BALANCE_G = 255
@@ -97,7 +99,7 @@ def blink_LED(state = None):
         led_indicator.on()
         led_state = True
 
-################### Debug time counterS function ###############################
+################### Debug time counters function ###############################
 def debug_delta(title=None):
     global debug_timeCounter_last_ms
     if title is not None:
@@ -112,7 +114,9 @@ def debug_log(msg):
         with open(LOG_FILE, 'a') as f:
             f.write(logdata)
     return
-
+def debug_print(msg, isDebugPrintEnabled):
+    if(isDebugPrintEnabled):
+        print(msg)
 
 ########################### Sleep function #####################################
 def sleep_count(sleep_len_sec, updated):
@@ -120,7 +124,7 @@ def sleep_count(sleep_len_sec, updated):
     sleep_len_ms = sleep_len_sec * 1000
     global update_timeStamp
     update_duration_ms = sleep_len_ms - time.ticks_diff(time.ticks_ms(), update_timeStamp)
-    print("sleep another {0} sec".format(update_duration_ms / 1000), end='')
+    print("sleep another {0} sec".format(update_duration_ms / 1000))
     
     pixel_diff_inclement = [[0.0, 0.0, 0.0]] * NUM_LED #container for storing pixel value inclement
     
@@ -135,7 +139,7 @@ def sleep_count(sleep_len_sec, updated):
         # gc.collect()  # garbage collector
         # gc.threshold(gc.mem_free() // 4 + gc.mem_alloc())
         # print(gc.mem_free())
-        print('.', end='')
+        print('z', end='')
     print('')
     update_timeStamp = time.ticks_ms()
     blink_LED(False)
@@ -262,36 +266,37 @@ def set_networktime():
     return False
 
 def connect_network():
-    try:
-        f = 0
-        # if ENABLE_SD:
-        #     # recursively lead wifi ssid and password from wifi.ini file on sd
-        #     f = open('/sd/wifi.ini')
-        # else:
-        # f = open('wifi.ini')
-        if(not check_connection()):
-            with open('wifi.ini') as f:
+    # try:
+    # f = 0
+    # if ENABLE_SD:
+    #     # recursively lead wifi ssid and password from wifi.ini file on sd
+    #     f = open('/sd/wifi.ini')
+    # else:
+    # f = open('wifi.ini')
+    if(not check_connection()):
+        with open('wifi.ini') as f:
+            wifi_info = f.readline()
+            print(wifi_info)
+            while wifi_info != '':
+                ssid = wifi_info.split(',')[0]
+                pw = wifi_info.split(',')[1][:-2]
+                if connect_wifi(ssid, pw):
+                    f.close()
+                    print("connected")
+                    return True
+                    # break
+                else:
+                    print("connection failed: {0}".format(ssid))
+                # wait(1)
+                time.sleep_ms(1)
                 wifi_info = f.readline()
-                while wifi_info != '':
-                    ssid = wifi_info.split(',')[0]
-                    pw = wifi_info.split(',')[1][:-2]
-                    if connect_wifi(ssid, pw):
-                        f.close()
-                        print("connected")
-                        return True
-                        # break
-                    else:
-                        print("connection failed: {0}".format(ssid))
-                    # wait(1)
-                    time.sleep_ms(1)
-                    wifi_info = f.readline()
-        else:
-            print("already online")
-            return True
-    except Exception as e:
-        print("No wifi.ini file")
-        debug_log("connection unsuccessful")
-        return False
+    else:
+        print("already online")
+        return True
+    # except Exception as e:
+    #     print("No wifi.ini file")
+    #     debug_log("connection unsuccessful")
+    #     return False
     return False
 
 ########################## Data getter ######################################
@@ -326,15 +331,14 @@ def split_list(l, s):
 #
 ####################################################################
 def updatePic_sockets():
+    global addr_IP
+    debug_print("updating", DEBUG_MSG)
+
     debug_timeCounter_last_ms = time.ticks_ms()
 
     rcv_data = bytearray()
 
     proto, dummy, host, path = URL.split('/', 3)
-    # print('proto: ' + str(proto))
-    # print('dummy: ' + str(dummy))
-    # print('host: ' + str(host))
-    # print('path: ' + str(path))
 
     port = 80
     if proto == 'https:':
@@ -343,14 +347,25 @@ def updatePic_sockets():
     if ":" in host:
         host, port = host.split(":", 1)
         port = int(port)
+    # debug_print(port, DEBUG_MSG)
+    # debug_print(host, DEBUG_MSG)
 
-    addr = socket.getaddrinfo(host, port)[0][-1]
-    # addr = socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM)
+    # addr = socket.getaddrinfo(host, port)[0][-1]
+    
+    addr = socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM)
     # addr = addr[0]
-    # print(str(addr))
+    debug_print("type: " + str(type(addr)), DEBUG_MSG)
+    debug_print("size: " + str(len(addr)), DEBUG_MSG)
+    debug_print("content: " + str(addr), DEBUG_MSG)
+    if(len(addr) > 0 or len(addr_IP) == 0):
+        try:
+            addr_IP = addr[0][-1]
+        except:
+            debug_print("unable to resolve IP", DEBUG_MSG)
+            return rcv_data
 
     s = socket.socket()
-    s.settimeout(5.0)
+    s.settimeout(30.0)
     # s = socket.socket(addr[0], addr[1], addr[2])
     method = "GET"
 
@@ -358,7 +373,10 @@ def updatePic_sockets():
     # s.send(bytes('GET /%s HTTP/1.0\r\nHost: %s\r\n\r\n' % (path, host), 'utf8'))
     try:
         # s.connect(addr[-1])
-        s.connect(addr)
+        # s.connect(addr)
+        s.connect(addr_IP)
+        debug_print("connected", DEBUG_MSG)
+
         if proto == "https:":
             import ussl
             s = ussl.wrap_socket(s, server_hostname=host)
@@ -373,6 +391,7 @@ def updatePic_sockets():
             if data:
                 # data will be splitted with \r\n\r\n\ = CR LF CR LF
                 l = split_list(data, [13, 10, 13, 10])
+                debug_print("H", DEBUG_MSG)
 
                 if len(l) == 2:
                     # print("header= : {} ".format(len(l[0])))
@@ -380,9 +399,11 @@ def updatePic_sockets():
                     # outfile.write(l[1])'
                     rcv_data += l[1]
                     header_received = True
+                    debug_print("Header found", DEBUG_MSG)
                     break
             if header_counter > 2:
                 rcv_data = bytearray()  #clear the data
+
                 break
             header_counter += 1
         # once you received header and parsed out, receive 100 bytes data per each step until it stops.
@@ -411,6 +432,8 @@ def updatePic_sockets():
     s.close()
     gc.collect()  # garbage collector
     gc.threshold(gc.mem_free() // 4 + gc.mem_alloc())
+
+    debug_print("update done", DEBUG_MSG)
 
     debug_delta('fetch data')
     return rcv_data
@@ -543,6 +566,8 @@ def getPixelNum(n):
 #
 #######################################################################################
 def readPixels_buf(buf):
+    debug_print("reading pixel", DEBUG_MSG)
+
     if len(buf) > 0:
         global pixel_diff
         pixelBlackoutCheck = False
@@ -644,7 +669,9 @@ debug_log("Boot")
 ########################## Loop #################################
 while True:
     updateState = False
+    debug_print("new loop", DEBUG_MSG)
     if check_connection():
+        debug_print("connection check done", DEBUG_MSG)
         updateState = readPixels_buf(updatePic_sockets())
         if not updateState:
             debug_log("failed decode process")
